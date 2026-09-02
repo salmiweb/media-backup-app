@@ -19,11 +19,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Gradle
+      - name: Install and Setup Gradle 8.5
         uses: gradle/actions/setup-gradle@v3
-
-      - name: Make Gradlew Executable
-        run: chmod +x gradlew || true
+        with:
+          gradle-version: '8.5'
 
       - name: Build Debug APK
         run: gradle assembleDebug --no-daemon
