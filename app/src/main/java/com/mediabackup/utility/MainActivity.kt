@@ -3,6 +3,7 @@ package com.mediabackup.utility
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -35,11 +36,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.mediabackup.utility.data.BackupMediaItem
@@ -611,6 +616,24 @@ fun MediaPreviewDialog(
         SimpleDateFormat("MMM dd, yyyy - HH:mm:ss", Locale.getDefault()).format(Date(item.timestamp))
     }
 
+    var exoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
+
+    DisposableEffect(item) {
+        if (item.isVideo) {
+            val player = ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri(Uri.fromFile(File(item.filePath))))
+                prepare()
+                playWhenReady = true
+            }
+            exoPlayer = player
+        }
+
+        onDispose {
+            exoPlayer?.release()
+            exoPlayer = null
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -634,14 +657,28 @@ fun MediaPreviewDialog(
                         .background(Color.Black),
                     contentAlignment = Alignment.Center
                 ) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(File(item.filePath))
-                            .build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (item.isVideo) {
+                        exoPlayer?.let { player ->
+                            AndroidView(
+                                factory = { ctx ->
+                                    PlayerView(ctx).apply {
+                                        this.player = player
+                                        useController = true
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    } else {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(File(item.filePath))
+                                .build(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
 
                 Text("Saved at: $formattedDate", style = MaterialTheme.typography.bodySmall)
