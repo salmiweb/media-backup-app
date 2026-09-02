@@ -1,24 +1,16 @@
 package com.mediabackup.utility
 
 import android.Manifest
-import android.app.ActivityManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -29,14 +21,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -55,7 +45,6 @@ import coil.request.ImageRequest
 import com.mediabackup.utility.data.BackupMediaItem
 import com.mediabackup.utility.data.MediaFilterType
 import com.mediabackup.utility.data.MediaViewModel
-import com.mediabackup.utility.service.MediaListenerService
 import com.mediabackup.utility.ui.theme.MediaBackupTheme
 import java.io.File
 import java.text.SimpleDateFormat
@@ -88,13 +77,11 @@ fun MainScreen(viewModel: MediaViewModel = viewModel()) {
     val mediaItems by viewModel.mediaItems.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     val selectedFilter by viewModel.selectedFilter.collectAsState()
-    val activeEventLog by viewModel.recentEventLog.collectAsState()
 
     var isNotificationServiceEnabled by remember { mutableStateOf(false) }
     var hasStoragePermission by remember { mutableStateOf(false) }
     var selectedMediaForPreview by remember { mutableStateOf<BackupMediaItem?>(null) }
 
-    // Helper to check NotificationListenerService status
     fun checkNotificationListenerStatus(): Boolean {
         val flat = Settings.Secure.getString(
             context.contentResolver,
@@ -104,7 +91,6 @@ fun MainScreen(viewModel: MediaViewModel = viewModel()) {
         return flat?.contains(packageName) == true
     }
 
-    // Helper to check granular storage permissions
     fun checkStoragePermissions(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val readImages = ContextCompat.checkSelfPermission(
@@ -121,7 +107,6 @@ fun MainScreen(viewModel: MediaViewModel = viewModel()) {
         }
     }
 
-    // Lifecycle observer to re-check permissions when returning from Settings screen
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -136,7 +121,6 @@ fun MainScreen(viewModel: MediaViewModel = viewModel()) {
         }
     }
 
-    // Storage permission launcher for Android 13+ Granular & Legacy permissions
     val storagePermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissionsMap ->
@@ -149,7 +133,6 @@ fun MainScreen(viewModel: MediaViewModel = viewModel()) {
         }
     }
 
-    // Request permissions trigger
     fun requestMediaPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             storagePermissionLauncher.launch(
@@ -178,7 +161,7 @@ fun MainScreen(viewModel: MediaViewModel = viewModel()) {
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CloudSync,
+                            imageVector = Icons.Default.Refresh,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -225,7 +208,6 @@ fun MainScreen(viewModel: MediaViewModel = viewModel()) {
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 1. Service Status Dashboard
             ServiceStatusCard(
                 isServiceEnabled = isNotificationServiceEnabled,
                 onOpenSettings = {
@@ -237,7 +219,6 @@ fun MainScreen(viewModel: MediaViewModel = viewModel()) {
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // 2. Storage Permission Card (Shown when permissions are missing)
             if (!hasStoragePermission) {
                 StoragePermissionCard(
                     onRequestPermission = { requestMediaPermissions() }
@@ -245,7 +226,6 @@ fun MainScreen(viewModel: MediaViewModel = viewModel()) {
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // 3. Status Filter Bar & Summary Stats
             MediaFilterRow(
                 totalCount = mediaItems.size,
                 selectedFilter = selectedFilter,
@@ -254,7 +234,6 @@ fun MainScreen(viewModel: MediaViewModel = viewModel()) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 4. Responsive LazyVerticalGrid Gallery View
             if (mediaItems.isEmpty()) {
                 EmptyStateView(
                     isServiceActive = isNotificationServiceEnabled,
@@ -285,7 +264,6 @@ fun MainScreen(viewModel: MediaViewModel = viewModel()) {
         }
     }
 
-    // Media Preview Dialog with Details and Share options
     selectedMediaForPreview?.let { item ->
         MediaPreviewDialog(
             item = item,
@@ -314,9 +292,6 @@ fun MainScreen(viewModel: MediaViewModel = viewModel()) {
     }
 }
 
-/**
- * Service Status Card showing Active or Disabled state with dynamic action button.
- */
 @Composable
 fun ServiceStatusCard(
     isServiceEnabled: Boolean,
@@ -393,9 +368,6 @@ fun ServiceStatusCard(
     }
 }
 
-/**
- * Storage Permission Card requesting Scoped Media Read access.
- */
 @Composable
 fun StoragePermissionCard(
     onRequestPermission: () -> Unit
@@ -420,7 +392,7 @@ fun StoragePermissionCard(
                 modifier = Modifier.weight(1f)
             ) {
                 Icon(
-                    imageVector = Icons.Default.FolderSpecial,
+                    imageVector = Icons.Default.Folder,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.size(32.dp)
@@ -450,9 +422,6 @@ fun StoragePermissionCard(
     }
 }
 
-/**
- * Filter Chip Row for quick media category sorting.
- */
 @Composable
 fun MediaFilterRow(
     totalCount: Int,
@@ -475,14 +444,14 @@ fun MediaFilterRow(
                 selected = selectedFilter == MediaFilterType.PHOTOS,
                 onClick = { onFilterSelected(MediaFilterType.PHOTOS) },
                 label = { Text("Photos") },
-                leadingIcon = { Icon(Icons.Default.Photo, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                leadingIcon = { Icon(Icons.Default.AccountBox, contentDescription = null, modifier = Modifier.size(16.dp)) },
                 shape = RoundedCornerShape(8.dp)
             )
             FilterChip(
                 selected = selectedFilter == MediaFilterType.VIDEOS,
                 onClick = { onFilterSelected(MediaFilterType.VIDEOS) },
                 label = { Text("Videos") },
-                leadingIcon = { Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp)) },
                 shape = RoundedCornerShape(8.dp)
             )
         }
@@ -496,9 +465,6 @@ fun MediaFilterRow(
     }
 }
 
-/**
- * Media Thumbnail Card rendered in LazyVerticalGrid.
- */
 @Composable
 fun MediaThumbnailItem(
     item: BackupMediaItem,
@@ -524,7 +490,6 @@ fun MediaThumbnailItem(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Video indicator badge
             if (item.isVideo) {
                 Box(
                     modifier = Modifier
@@ -554,7 +519,6 @@ fun MediaThumbnailItem(
                 }
             }
 
-            // Package source pill
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -579,9 +543,6 @@ fun MediaThumbnailItem(
     }
 }
 
-/**
- * Empty state view with informative guide and manual scan button.
- */
 @Composable
 fun EmptyStateView(
     isServiceActive: Boolean,
@@ -598,7 +559,7 @@ fun EmptyStateView(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Outlined.PhotoLibrary,
+                imageVector = Icons.Default.AccountBox,
                 contentDescription = null,
                 modifier = Modifier.size(64.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -638,9 +599,6 @@ fun EmptyStateView(
     }
 }
 
-/**
- * Media Preview and details modal sheet.
- */
 @Composable
 fun MediaPreviewDialog(
     item: BackupMediaItem,
